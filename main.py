@@ -8,6 +8,7 @@ Internship Project, Matching patients
 import requests
 import typer
 from typing_extensions import Annotated
+from typing import List, Optional
 
 original_patient_id = None
 original_study_id = None
@@ -21,6 +22,13 @@ cancerTypeList = ["Breast Cancer", "Non-Small Cell Lung Cancer", "Esophagogastri
 overallSurvivalStatusList = ["Alive", "Deceased", "N/A"]
 sampleTypeList = ["Metastasis", "Primary", "Recurrence"]
 studyList = []
+attributeIdList = ["CANCER_TYPE", "SAMPLE_TYPE", "SEX", "OS_STATUS"]
+# os status and sex is under patient cd, other stuff is under sampleid
+valueList = []
+cancer_type_val= ""
+survival_val = ""
+gender_val = ""
+sample_type_val = ""
 
 
 # Methods
@@ -46,39 +54,127 @@ def fetchPatientList(studyId: str):
 # It actually might be under Gene Panel Data, but there are a lot of hoops to jump through; even then, it would jsut provide a
 # a list of samples that have the narrowed criteria when you use the corect sampleListId
 
-def getUserPreference(response: Annotated[chr, typer.Option(prompt="Would you like to search with a patient ID?(y/n):")]):
-    return 0
-
 # prompts the user to enter a list of studies one at a time
 def getStudyList():
-    print("Please enter studyIDs to search through. Enter after each entry.")
+    print("Please enter studyIDs to search through. Enter after each entry. Enter blank when done.")
     while True:
         list_input = input()
         if list_input == "":
             break
         else:
-            # TODO: Validate study Id
+            # TODO: Validate study Id. If invalid, move on
 
             # add to list
             studyList.append(list_input)
+    print("List complete")
     return
 
+# Possible to cut down further? 
+# prompts the user for values, used when no patient specified.
+def getCriteriaValues():
+    # counter for ease
+    print("Please specify the following criteria with the correct number. Enter blank when you don't want to specify.")
+    
+    # Cancer Type
+    print("Cancer Type: ")
+    attributePrinter(cancerTypeList, cancer_type_val)
+    
+    # Sample type
+    print("Sample Type: ")
+    attributePrinter(sampleTypeList, sample_type_val)
 
-# might get rid of the prompts, not all will use it
-def main(pID : Annotated[str, typer.Option(help="patientID when searching using patient as a base")] = "",
-        sID: Annotated[str, typer.Option(help="studyID of patient when searching using patientID")] = ""):
-    # Check whether pID and sID were entered to decide how to proceed
-    if pID == "":
+    # Gender
+    print("Gender: ")
+    attributePrinter(genderList, gender_val)
+
+    # Survival Status
+    print("Survival Status: ")
+    attributePrinter(overallSurvivalStatusList, survival_val)
+
+    # Print all values and confirm
+    return confirmPrompt(valueList)
+
+# prints out a list of available values for things with numbers and then save input (in assign)
+def attributePrinter(aList, assign):
+    counter = 0
+    for type in aList:
+        print(f"{counter} {type}")
+        counter += 1
+    user_input = input()
+    if user_input != "":
+        # input is valid; add value
+        assign = aList[int(user_input)]
+        valueList.append(assign)
+
+    return
+
+# chooseAttributes when patient is used as a base 
+def chooseAttributes():
+    counter = 0
+    print("Please enter the corresponding numbers for which criteria to use. Enter blank to confirm all.")
+    for item in attributeIdList:
+        print(f"{counter} {item}")
+        counter += 1
+    while True:
+        user_input = input()
+        if user_input == "":
+            break
+        else:
+            valueList.append(attributeIdList[int(user_input)])
+    # confirm
+    return confirmPrompt(valueList)
+
+# when confirming settings
+def confirmPrompt(aList):
+    print("Are the following values correct(y/n)): ")
+    for item in aList:
+        print(item)
+    user_input = input()
+    if user_input == "n":
+        print("Resetting Values")
+        valueList.clear()
+        return 1
+    print("Confirmed")
+    return 0
+
+
+# main
+def main(response : Annotated[str, typer.Option(prompt="Are you searching with a patient?(y/n)", 
+                                                help="choose whether to use patient as a base")]):
+    if response == "n":
         # search with only criteria
-        print("Please answer the following prompts. Enter blank when leaving an attribute ambiguous or finishing a list. \n")
+        print("Manual Search \n")
         getStudyList()
-            
+        # loop until correct values entered
+        while True:
+            test = getCriteriaValues()
+            if test == 0:
+                break
+
+        # proceed with the search
+        print("Searching...")
+
         return 0
+    
     else:
         # search with pID. Validate the IDs
+        print("Patient-based Search \n")
+        print("Please enter a valid patientID: ")
+        original_patient_id = input()
+        print("Please enter the corresponding studyID: ")
+        original_study_id = input()
 
-        # get list of studies 
+
+
+        # Get criteria and studies
         getStudyList()
+        while True:
+            test = chooseAttributes()
+            if test == 0:
+                break
+
+        # proceed with search
+        print("Searching...")
 
         return 0
 
