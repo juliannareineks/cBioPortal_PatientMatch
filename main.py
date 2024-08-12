@@ -22,13 +22,21 @@ cancerTypeList = ["Breast Cancer", "Non-Small Cell Lung Cancer", "Esophagogastri
 overallSurvivalStatusList = ["Alive", "Deceased", "N/A"]
 sampleTypeList = ["Metastasis", "Primary", "Recurrence"]
 studyList = []
-attributeIdList = ["CANCER_TYPE", "SAMPLE_TYPE", "SEX", "OS_STATUS"]
-# os status and sex is under patient cd, other stuff is under sampleid
+attributeIdList = ["CANCER_TYPE", "SAMPLE_TYPE"]
+patientAttributeIdList = ["SEX", "OS_STATUS"]
+# os status and sex is under patient id, other stuff is under sampleid
 valueList = []
+patientValueList = []
+compareValueList = []
 cancer_type_val= ""
 survival_val = ""
 gender_val = ""
 sample_type_val = ""
+sampleTracker = False
+patientTracker = False
+universalcount = 0
+# Need to fix the value lists because need to search through clinical data for samples and patients, need different api calls (two separate lists)
+
 
 
 # Methods
@@ -44,9 +52,17 @@ def fetchSampleClinicalDataAttribute(studyId: str, sampleId: str, attribute: str
 def fetchClinicalAttributesStudy(studyId: str):
     return requests.get(buildURL("clinical-attributes", studyId, None, None, None)).json()
 
-# fetchPateintList gets a list of all patients in a study (does not include detailed info)
+# fetchPatientList gets a list of all patients in a study (does not include detailed info)
 def fetchPatientList(studyId: str):
     return requests.get(buildURL("patients", studyId, None, None, None)).json()
+
+# fetchPatient fetches a patient to see if they exist
+def fetchPatient(patientId: str, studyId: str):
+    return requests.get(buildURL("patients", studyId, patientId, None, None)).json()
+
+# fetchPatientClinicalData gets a patient's clinical data (as opposed to a sample's clinical data)
+def fetchPatientClinicalData(patientId: str, studyId: str, attribute: str):
+    return requests.get(buildURL("patients", studyId, patientId, None, attribute)).json()
 
 # IMPORTANT: how to get mutations from sampleID? It's not a part of patient or sample clinical data
 # I checked the API, you cannot get mutation data by patient. You have to obtain a MolecularProfileId, which when
@@ -71,6 +87,7 @@ def getStudyList():
 
 # Possible to cut down further? 
 # prompts the user for values, used when no patient specified.
+# THIS SECTION IS ONLY USED WITH NON-PATIENT SEARCHES
 def getCriteriaValues():
     # counter for ease
     print("Please specify the following criteria with the correct number. Enter blank when you don't want to specify.")
@@ -95,6 +112,7 @@ def getCriteriaValues():
     return confirmPrompt(valueList)
 
 # prints out a list of available values for things with numbers and then save input (in assign)
+# NON-PATIENT SEARCHES
 def attributePrinter(aList, assign):
     counter = 0
     for type in aList:
@@ -109,7 +127,8 @@ def attributePrinter(aList, assign):
     return
 
 # chooseAttributes when patient is used as a base 
-def chooseAttributes():
+# PATIENT SEARCHES
+def chooseAttributes(inputList, outputList):
     counter = 0
     print("Please enter the corresponding numbers for which criteria to use. Enter blank to confirm all.")
     for item in attributeIdList:
@@ -137,12 +156,74 @@ def confirmPrompt(aList):
     print("Confirmed")
     return 0
 
+# error check to catch when api calls fail
+def errorCheck(item):
+    if item != 0:
+        return 1
+    return 0
+
+# search
+def search():
+    attributeTrack = 0
+    for study in studyList:
+        currentStudyAttributesList = fetchClinicalAttributesStudy(study)
+        for attribute in valueList:
+            for listAttribute in currentStudyAttributesList:
+                if attribute == listAttribute['clinicalAttributeId']:
+                    attributeTrack += 1
+        if attributeTrack == len(valueList):
+            attributeTrack = 0
+            # get list of patients
+            patientList = fetchPatientList(study)
+            # loop through patients
+            for patientInfo in patientList:
+                # get one patient's samples
+                currentPatientId = patientInfo['patientId']
+                currentPatientSamples = fetchPatientSamples(currentPatientId, study)
+                # start loop for sample attributes 
+                for x in range(len(valueList)):
+                    if sampleDataCompare(currentPatientSamples, x) == 1:
+                        break
+                    # only confirms when ALL attributes have passed the break statement(x is correct); otherwise this prints for any pass instead of cumulative
+                    if x == (len(valueList) - 1):
+                        sampleTracker = True
+                # start loop for patient attributes
+                for y in range(len(patientValueList)):
+                    if patientDataCompare(y) == 1:
+                        break
+                    if y == (len(patientValueList) - 1):
+                        patientTracker = True
+                # Failsafe trues if one of the lists is empty
+                if len(valueList) == 0:
+                    sampleTracker = True
+                if len(patientValueList) == 0:
+                    patientTracker = True
+                # test if trues to print
+                if sampleTracker == True and patientTracker == True:
+                    print(currentPatientId)
+                    universalcount += 1
+                sampleTracker = False
+                patientTracker = False
+        else:
+            # this study cannot be searched, it does not match all requirements
+            print(f"Cannot search study: {study}")
+        attributeTrack = 0
+
+    return 
+
+# sample data search
+def sampleDataCompare(patientSampleList: list, num: int):
+    return 0
+
+# patient data 
+def patientDataCompare(num: int):
+    return 0
 
 # main
 def main(response : Annotated[str, typer.Option(prompt="Are you searching with a patient?(y/n)", 
                                                 help="choose whether to use patient as a base")]):
     if response == "n":
-        # search with only criteria
+        # SEARCH WITHOUT PID
         print("Manual Search \n")
         getStudyList()
         # loop until correct values entered
@@ -157,26 +238,41 @@ def main(response : Annotated[str, typer.Option(prompt="Are you searching with a
         return 0
     
     else:
-        # search with pID. Validate the IDs
+        # SEARCH WITH PID. Validate the IDs
         print("Patient-based Search \n")
         print("Please enter a valid patientID: ")
         original_patient_id = input()
         print("Please enter the corresponding studyID: ")
         original_study_id = input()
 
-
+        #TODO: HOW TO CATCH ERROR?? Eventually code this solution into errorCheck
 
         # Get criteria and studies
         getStudyList()
         while True:
-            test = chooseAttributes()
-            if test == 0:
+            test = chooseAttributes(attributeIdList, valueList)
+            test2 = chooseAttributes(patientAttributeIdList, patientValueList)
+            if test == 0 and test2 == 0:
                 break
+
+        # fetch patient's attributes (attributeIDs stored in valueList)
+        pOriginalSamples = fetchPatientSamples(original_patient_id, original_study_id)[0]
+        pSampleId = pOriginalSamples['sampleId']
+        for attributeId in valueList:
+            pCurrentAttribute = fetchSampleClinicalDataAttribute(original_study_id, pSampleId, attributeId)[0]
+            pcurrentValue = pCurrentAttribute['value']
+            compareValueList.append(pcurrentValue)
+            print (f"{attributeId} : {pcurrentValue}")
+        
+
 
         # proceed with search
         print("Searching...")
-
+        search()
+        print("Search Complete")
         return 0
+    
+
 
 
 # Design choice: Put all params as commandline ops/args, or use progressive prompts (input)?
@@ -196,8 +292,16 @@ def buildURL(type: str, studyId: str, patientId: str, sampleId: str, attributeId
         return f"{urlFirstPiece}samples/{sampleId}/{type}?attributeId={attributeId}&{urlEndPiece}"
     elif type == "clinical-attributes":
         return f"{urlFirstPiece}{type}?{urlEndPiece}"
+    elif type == "patients" and attributeId != None:
+        # fetches clincial data attribute of a patient
+        return f"{urlFirstPiece}{type}/{patientId}/clinical-data?attributeId={attributeId}&{urlEndPiece}"
+    elif type == "patients" and patientId != None:
+        # fetches one paarticular patient, not their clinical data (for confirmation purposes)
+        return f"{urlFirstPiece}{type}/{patientId}"
     elif type == "patients":
         return f"{urlFirstPiece}{type}?{urlEndPiece}"
+
+
         
     return None
 
