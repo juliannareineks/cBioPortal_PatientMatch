@@ -128,10 +128,10 @@ def attributePrinter(aList, assign):
 
 # chooseAttributes when patient is used as a base 
 # PATIENT SEARCHES
-def chooseAttributes(inputList, outputList):
+def chooseAttributes(inputList: list, outputList: list):
     counter = 0
     print("Please enter the corresponding numbers for which criteria to use. Enter blank to confirm all.")
-    for item in attributeIdList:
+    for item in inputList:
         print(f"{counter} {item}")
         counter += 1
     while True:
@@ -139,24 +139,25 @@ def chooseAttributes(inputList, outputList):
         if user_input == "":
             break
         else:
-            valueList.append(attributeIdList[int(user_input)])
+            outputList.append(inputList[int(user_input)])
     # confirm
-    return confirmPrompt(valueList)
+    return confirmPrompt(outputList)
 
 # when confirming settings
-def confirmPrompt(aList):
+def confirmPrompt(aList: list):
     print("Are the following values correct(y/n)): ")
     for item in aList:
         print(item)
     user_input = input()
     if user_input == "n":
         print("Resetting Values")
-        valueList.clear()
+        aList.clear()
         return 1
     print("Confirmed")
     return 0
 
 # error check to catch when api calls fail
+# TODO Not implemented yet
 def errorCheck(item):
     if item != 0:
         return 1
@@ -216,7 +217,7 @@ def sampleDataCompare(patientSampleList: list, num: int):
     return 0
 
 # patient data 
-def patientDataCompare(num: int):
+def patientDataCompare(patientId: str,num: int):
     return 0
 
 # main
