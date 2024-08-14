@@ -36,10 +36,6 @@ confirmedPatientAttributeList = []
 # stores values to use to compare
 compareValueList = []
 comparePatientValueList = []
-cancer_type_val= ""
-survival_val = ""
-gender_val = ""
-sample_type_val = ""
 
 # Methods
 # fetchPatientSamples uses requests to get all of a pateint's samples
@@ -59,9 +55,21 @@ def fetchClinicalAttributesStudy(studyId: str):
 def fetchPatientList(studyId: str):
     return requests.get(buildURL("patients", studyId, None, None, None)).json()
 
-# fetchPatient fetches a patient to see if they exist
+# fetchPatient fetches a patient to see if they exist; built in error detect
 def fetchPatient(patientId: str, studyId: str):
-    return requests.get(buildURL("patients", studyId, patientId, None, None)).json()
+    r = requests.get(buildURL("patients", studyId, patientId, None, None))
+    if r.status_code != 200:
+        print("PatientId or patient's study is invalid, please re-enter.")
+        return 1
+    return 0
+
+# fethes a study to confirm it exists
+def fetchStudy(studyId: str):
+    r = requests.get(buildURL("studies", studyId, None, None, None))
+    if r.status_code != 200:
+        print("StudyId is invalid, please re-enter.")
+        return 1
+    return 0
 
 # fetchPatientClinicalData gets a patient's clinical data (as opposed to a sample's clinical data)
 def fetchPatientClinicalData(patientId: str, studyId: str, attribute: str):
@@ -103,10 +111,10 @@ def getStudyList():
         if list_input == "":
             break
         else:
-            # validate study using codes/ apifetch
-
-            # add to list
-            studyList.append(list_input)
+            # validate study using codes/ apifetch. 
+            if errorCheckStudy(list_input) == 0:
+                # add to list
+                studyList.append(list_input)
     print("List complete")
     return
 
@@ -204,12 +212,14 @@ def confirmPromptPatient(aList: list):
     return 0
 
 
-# error check to catch when api calls fail
-# TODO Not implemented yet
-def errorCheck(item):
-    if item != 0:
-        return 1
-    return 0
+# error checks to catch when api calls fail
+def errorCheckPatient(patientId: str, studyId: str):
+    status = fetchPatient(patientId, studyId)
+    return status   
+
+def errorCheckStudy(studyId: str):
+    status = fetchStudy(studyId)
+    return status
 
 # search
 def search():
@@ -270,8 +280,8 @@ def search():
         attributeTrack = 0
     print(f"total matched patients: {universalcount}")
     return 
-# END SEARCH METHOD
 
+# COMPARISON METHODS
 # sample data search
 # In both patient and non-patient searches, the attribute IDS are stored in confirmedAttributeList. The patient's data is stored in compareValueList
 def sampleDataCompare(patientSampleList: list, num: int, study: str):
@@ -292,6 +302,7 @@ def patientDataCompare(patientId: str, num: int, studyId: str):
     return 0
 
 # MAIN
+# Note on patient URL: there's no API function to get that URL, so I'm not sure there's a way to get it; will keep looking
 def main(response : Annotated[str, typer.Option(prompt="Are you searching with a patient?(y/n)", 
                                                 help="choose whether to use patient as a base")]):
     if response == "n":
@@ -313,13 +324,18 @@ def main(response : Annotated[str, typer.Option(prompt="Are you searching with a
     else:
         # SEARCH WITH PID. Validate the IDs
         print("Patient-based Search \n")
-        print("Please enter a valid patientID: ")
-        original_patient_id = input()
-        print("Please enter the corresponding studyID: ")
-        original_study_id = input()
+        
+        while True:
+            print("Please enter a valid patientID: ")
+            original_patient_id = input()
+            print("Please enter the corresponding studyID: ")
+            original_study_id = input()
+            if errorCheckPatient(original_patient_id, original_study_id) + errorCheckStudy(original_study_id) == 0:
+                break
 
         # Get criteria and studylist
         getStudyList()
+
         while True:
             test = chooseAttributes(getAttributeIdList(), confirmedAttributeList)
             if test == 0:
@@ -360,6 +376,8 @@ def buildURL(type: str, studyId: str, patientId: str, sampleId: str, attributeId
     urlEndPiece = "projection=SUMMARY&pageSize=200000&pageNumber=0&direction=ASC"
     if type == "samples":
          return f"{urlFirstPiece}patients/{patientId}/{type}?{urlEndPiece}"
+    elif type == "studies":
+         return f"{urlFirstPiece}{studyId}"
     elif type == "clinical-data":
         return f"{urlFirstPiece}samples/{sampleId}/{type}?attributeId={attributeId}&{urlEndPiece}"
     elif type == "clinical-attributes":
