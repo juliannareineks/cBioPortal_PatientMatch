@@ -298,14 +298,15 @@ def search():
 # COMPARISON METHODS
 # sample data search
 # In both patient and non-patient searches, the attribute IDS are stored in confirmedAttributeList. The patient's data is stored in compareValueList
+# Only tests one attribute per call
 def sampleDataCompare(patientSampleList: list, num: int, study: str):
     for sample in patientSampleList:
         currentSampleId = sample['sampleId']
         currentSample = fetchSampleClinicalDataAttribute(study, currentSampleId, confirmedAttributeList[num])[0]
         currentSampleValue = currentSample['value']
-        if currentSampleValue != compareValueList[num]:
-            return 1
-    return 0
+        if currentSampleValue == compareValueList[num]:
+            return 0
+    return 1
 
 # patient data 
 def patientDataCompare(patientId: str, num: int, studyId: str):
