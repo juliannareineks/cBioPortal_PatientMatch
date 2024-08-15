@@ -6,15 +6,21 @@ Internship Project, Matching patients
 # Application to match and search for patients with specified criteria and studies
 
 """Quick ref example to use when testing
-Studies: 
+Studies --
 metastatic_solid_tumors_mich_2017
 mixed_allen_2018
-Manual attributes:
+Manual attributes --
 Female and Non-Small Cell Lung Cancer
-Patient info:
-id -- luad_mskcc_2015_22
-study -- mixed_allen_2018
+Patient info --
+id: luad_mskcc_2015_22
+study: mixed_allen_2018
 CANCER_TYPE and SEX
+
+Studies --
+ntrk_msk_2019
+lung_pdx_msk_2021
+Manual Attributes --
+Female, Non-Small Cell Lung Cancer, 
 """
 
 import requests
@@ -95,8 +101,6 @@ def getAttributeIdList():
 def getPatientAttributeIdList():
     return ["SEX", "OS_STATUS"]
 
-
-
 # IMPORTANT: how to get mutations from sampleID? It's not a part of patient or sample clinical data
 # I checked the API, you cannot get mutation data by patient. You have to obtain a MolecularProfileId, which when
 # entered into a mutation search will give a list of every mutation instance in the study by sample by patient 
@@ -147,16 +151,19 @@ def getCriteriaValues():
 # prints out a list of available values for attributes, then saves the value to a comparison list
 # ONLY USED IN NON-PATIENT SEARCHES
 def attributePrinter(aList: list, assignValueList:list, assignAttributeList:list, attribute: str):
-    counter = 0
+    counter = 1
     for type in aList:
         print(f"{counter} {type}")
         counter += 1
     user_input = input()
-    if user_input != "":
+    if user_input != "" and user_input.isnumeric() == True:
         # input is valid; first add value to correct valuelist
         # then add data label/attribute to confirmedAttributeList or confirmedPatientAttributeList.
-        assignValueList.append(aList[int(user_input)])
+        assignValueList.append(aList[(int(user_input)) - 1])
         assignAttributeList.append(attribute)
+    elif user_input != "" and user_input.isnumeric() != True:
+        # input is not a number 
+        print("Previous input does not correspond to a value.")
     return
 
 # chooseAttributes when patient is used as a base. ONLY THE LABELS NEED TO BE STORED HERE. FINDING PATIENT DETAILS IS ELSEWHERE.
@@ -235,7 +242,15 @@ def search():
             for listAttribute in currentStudyAttributesList:
                 if attribute == listAttribute['clinicalAttributeId']:
                     attributeTrack += 1
-        if attributeTrack == len(confirmedAttributeList):
+                    print(f"{study} has attribute {attribute}")
+        # NEW
+        for attribute in confirmedPatientAttributeList:
+            for listAttribute in currentStudyAttributesList:
+                if attribute == listAttribute['clinicalAttributeId']:
+                    attributeTrack += 1
+                    print(f"{study} has attribute {attribute}")
+        # END NEW
+        if attributeTrack == (len(confirmedAttributeList) + len(confirmedPatientAttributeList)):
             attributeTrack = 0
 
             # get list of patients
@@ -275,8 +290,7 @@ def search():
                 sampleTracker = False
                 patientTracker = False
         else:
-            # this study cannot be searched, it does not match all requirements
-            print(f"Cannot search study: {study}")
+            print(f"cannot search {study}, missing attribute(s)")   
         attributeTrack = 0
     print(f"total matched patients: {universalcount}")
     return 
@@ -377,7 +391,7 @@ def buildURL(type: str, studyId: str, patientId: str, sampleId: str, attributeId
     if type == "samples":
          return f"{urlFirstPiece}patients/{patientId}/{type}?{urlEndPiece}"
     elif type == "studies":
-         return f"{urlFirstPiece}{studyId}"
+         return f"{urlFirstPiece}"
     elif type == "clinical-data":
         return f"{urlFirstPiece}samples/{sampleId}/{type}?attributeId={attributeId}&{urlEndPiece}"
     elif type == "clinical-attributes":
