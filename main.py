@@ -21,15 +21,25 @@ ntrk_msk_2019
 lung_pdx_msk_2021
 Manual Attributes --
 Female, Non-Small Cell Lung Cancer, 
+Patient MSK_LX239 lung_pdx_msk_2021
 """
 
 import requests
 import typer
 from typing_extensions import Annotated
-from typing import List, Optional
+from rich import print
+from rich.console import Console
+from rich.theme import Theme
 
 original_patient_id = None
 original_study_id = None
+custom_theme = Theme({
+    "error" : "red",
+    "prompt" : "yellow",
+    "confirm" : "blue underline",
+    "pid" : "green"
+})
+console = Console(theme = custom_theme)
 
 # define lists of criteria 
 # currently no efficent way to check, per patient, mutations (unavailable by searching w/ sample or patient Ids)
@@ -65,7 +75,7 @@ def fetchPatientList(studyId: str):
 def fetchPatient(patientId: str, studyId: str):
     r = requests.get(buildURL("patients", studyId, patientId, None, None))
     if r.status_code != 200:
-        print("PatientId or patient's study is invalid, please re-enter.")
+        console.print("PatientId or patient's study is invalid, please re-enter.", style = "error")
         return 1
     return 0
 
@@ -73,7 +83,7 @@ def fetchPatient(patientId: str, studyId: str):
 def fetchStudy(studyId: str):
     r = requests.get(buildURL("studies", studyId, None, None, None))
     if r.status_code != 200:
-        print("StudyId is invalid, please re-enter.")
+        console.print("StudyId is invalid, please re-enter.", style = "error")
         return 1
     return 0
 
@@ -109,7 +119,7 @@ def getPatientAttributeIdList():
 
 # prompts the user to enter a list of studies one at a time
 def getStudyList():
-    print("Please enter studyIDs to search through. Enter after each entry. Enter blank when done.")
+    console.print("Please enter studyIDs to search through. Enter after each entry. Enter blank when done.", style = "prompt")
     while True:
         list_input = input()
         if list_input == "":
@@ -119,7 +129,7 @@ def getStudyList():
             if errorCheckStudy(list_input) == 0:
                 # add to list
                 studyList.append(list_input)
-    print("List complete")
+    console.print("List complete", style = "confirm")
     return
 
 # Possible to cut down further? 
@@ -127,22 +137,22 @@ def getStudyList():
 # THIS SECTION IS ONLY USED WITH NON-PATIENT SEARCHES
 def getCriteriaValues():
     # counter for ease
-    print("Please specify the following criteria with the correct number. Enter blank when you don't want to specify.")
+    console.print("Please specify the following criteria with the correct number. Enter blank when you don't want to specify.", style = "prompt")
     
     # Cancer Type
-    print("Cancer Type: ")
+    console.print("Cancer Type: ", style = "prompt")
     attributePrinter(getCancerTypeList(), compareValueList, confirmedAttributeList, "CANCER_TYPE")
     
     # Sample type
-    print("Sample Type: ")
+    console.print("Sample Type: ", style = "prompt")
     attributePrinter(getSampleTypeList(), compareValueList, confirmedAttributeList, "SAMPLE_TYPE")
 
     # Gender
-    print("Gender: ")
+    console.print("Gender: ", style = "prompt")
     attributePrinter(getGenderList(), comparePatientValueList, confirmedPatientAttributeList, "SEX")
 
     # Survival Status
-    print("Survival Status: ")
+    console.print("Survival Status: ", style = "prompt")
     attributePrinter(getOverallSurvivalStatusList(), comparePatientValueList, confirmedPatientAttributeList, "OS_STATUS")
 
     # Print all values and confirm
@@ -163,7 +173,7 @@ def attributePrinter(aList: list, assignValueList:list, assignAttributeList:list
         assignAttributeList.append(attribute)
     elif user_input != "" and user_input.isnumeric() != True:
         # input is not a number 
-        print("Previous input does not correspond to a value.")
+        console.print("Previous input does not correspond to a value.", style = "error")
     return
 
 # chooseAttributes when patient is used as a base. ONLY THE LABELS NEED TO BE STORED HERE. FINDING PATIENT DETAILS IS ELSEWHERE.
@@ -171,8 +181,8 @@ def attributePrinter(aList: list, assignValueList:list, assignAttributeList:list
 # outputList is storing the confirmed labels
 # PATIENT SEARCHES
 def chooseAttributes(labelList: list, aList: list):
-    counter = 0
-    print("Please enter the corresponding numbers for which criteria to use. Enter blank to confirm selections.")
+    counter = 1
+    console.print("Please enter the corresponding numbers for which criteria to use. Enter blank to confirm selections.", style = "prompt")
     for item in labelList:
         print(f"{counter} {item}")
         counter += 1
@@ -181,42 +191,51 @@ def chooseAttributes(labelList: list, aList: list):
         if user_input == "":
             break
         else:
-            aList.append(labelList[int(user_input)])
+            aList.append(labelList[int(user_input) - 1])
     # confirm
     return confirmPromptPatient(aList)
 
 # when confirming settings.
 # this version is used when manual/nonpatient searching (need to confirm values and attributes at same time)
 def confirmPromptManual(vLists: list[list], aLists: list[list]):
-    print("Are the following values correct?(y/n)): ")
+    console.print("Are the following values correct?(y/n)): ", style = "prompt")
     for typelist in vLists:
         for item in typelist:
             print(item)
     user_input = input()
     if user_input == "n":
-        print("Resetting Values")
+        console.print("Resetting Values", style = "confirm")
         for typelist in vLists:
             typelist.clear()
         for typelist in aLists:
             typelist.clear()
         return 1
-    print("Confirmed")
+    console.print("Confirmed\n", style = "confirm")
     return 0
 
 # when confirming settings.
 # This verison is used for PATIENT SEARCHES (no need to save values here)
 # aList is one list of attributes used in patient search to confirm
 def confirmPromptPatient(aList: list):
-    print("Are the following values correct?(y/n)")
+    console.print("Are the following values correct?(y/n)", style = "prompt")
     for item in aList:
         print(item)
     user_input = input()
     if user_input == "n":
-        print("Resetting Values")
+        console.print("Resetting Values", style = "confirm")
         aList.clear()
         return 1
-    print("Confirmed")
+    console.print("Confirmed\n", style = "confirm")
     return 0
+
+def confirmCorrectSample(sampleList: list):
+    counter = 1
+    console.print("This patient has multiple samples. Which sample would you like to use?", style = "prompt")
+    for sample in sampleList:
+        print(f"{counter} : {sample['sampleId']}")
+        counter +=  1
+    snum = input()
+    return (int(snum) - 1)
 
 
 # error checks to catch when api calls fail
@@ -230,68 +249,67 @@ def errorCheckStudy(studyId: str):
 
 # search
 def search():
-    # intialize trackers/boolean confirms
-    attributeTrack = 0
-    universalcount = 0
-    sampleTracker = False
-    patientTracker = False
-    # loop through studies
-    for study in studyList:
-        currentStudyAttributesList = fetchClinicalAttributesStudy(study)
-        for attribute in confirmedAttributeList:
-            for listAttribute in currentStudyAttributesList:
-                if attribute == listAttribute['clinicalAttributeId']:
-                    attributeTrack += 1
-                    print(f"{study} has attribute {attribute}")
-        # NEW
-        for attribute in confirmedPatientAttributeList:
-            for listAttribute in currentStudyAttributesList:
-                if attribute == listAttribute['clinicalAttributeId']:
-                    attributeTrack += 1
-                    print(f"{study} has attribute {attribute}")
-        # END NEW
-        if attributeTrack == (len(confirmedAttributeList) + len(confirmedPatientAttributeList)):
-            attributeTrack = 0
-
-            # get list of patients
-            patientList = fetchPatientList(study)
-
-            # loop through patients
-            for patientInfo in patientList:
-                # get one patient's samples
-                currentPatientId = patientInfo['patientId']
-                currentPatientSamples = fetchPatientSamples(currentPatientId, study)
-
-                # start loop for sample attributes 
-                for x in range(len(confirmedAttributeList)):
-                    if sampleDataCompare(currentPatientSamples, x, study) == 1:
-                        break
-                    # only confirms when ALL attributes have passed the break statement(x is correct); otherwise this prints for any pass instead of cumulative
-                    if x == (len(confirmedAttributeList) - 1):
-                        sampleTracker = True
-
-                # start loop for patient attributes
-                for y in range(len(confirmedPatientAttributeList)):
-                    if patientDataCompare(currentPatientId, y, study) == 1:
-                        break
-                    if y == (len(confirmedPatientAttributeList) - 1):
-                        patientTracker = True
-
-                # Failsafe trues if one of the lists is empty
-                if len(confirmedAttributeList) == 0:
-                    sampleTracker = True
-                if len(confirmedPatientAttributeList) == 0:
-                    patientTracker = True
-                # test if trues to print
-                if sampleTracker == True and patientTracker == True:
-                    # TODO Add the url of the patient
-                    print(currentPatientId)
-                    universalcount += 1
-                sampleTracker = False
-                patientTracker = False
-        else:
-            print(f"cannot search {study}, missing attribute(s)")   
+    with console.status("Working...", spinner="dots"):
+        # intialize trackers/boolean confirms
         attributeTrack = 0
+        universalcount = 0
+        sampleTracker = False
+        patientTracker = False
+        # loop through studies
+        for study in studyList:
+            currentStudyAttributesList = fetchClinicalAttributesStudy(study)
+            for attribute in confirmedAttributeList:
+                for listAttribute in currentStudyAttributesList:
+                    if attribute == listAttribute['clinicalAttributeId']:
+                        attributeTrack += 1
+                        print(f"{study} has attribute {attribute}")
+            for attribute in confirmedPatientAttributeList:
+                for listAttribute in currentStudyAttributesList:
+                    if attribute == listAttribute['clinicalAttributeId']:
+                        attributeTrack += 1
+                        print(f"{study} has attribute {attribute}")
+            if attributeTrack == (len(confirmedAttributeList) + len(confirmedPatientAttributeList)):
+                attributeTrack = 0
+
+                # get list of patients
+                patientList = fetchPatientList(study)
+
+                # loop through patients
+                for patientInfo in patientList:
+                    # get one patient's samples
+                    currentPatientId = patientInfo['patientId']
+                    currentPatientSamples = fetchPatientSamples(currentPatientId, study)
+
+                    # start loop for sample attributes 
+                    for x in range(len(confirmedAttributeList)):
+                        if sampleDataCompare(currentPatientSamples, x, study) == 1:
+                            break
+                        # only confirms when ALL attributes have passed the break statement(x is correct); otherwise this prints for any pass instead of cumulative
+                        if x == (len(confirmedAttributeList) - 1):
+                            sampleTracker = True
+
+                    # start loop for patient attributes
+                    for y in range(len(confirmedPatientAttributeList)):
+                        if patientDataCompare(currentPatientId, y, study) == 1:
+                            break
+                        if y == (len(confirmedPatientAttributeList) - 1):
+                            patientTracker = True
+
+                    # Failsafe trues if one of the lists is empty
+                    if len(confirmedAttributeList) == 0:
+                        sampleTracker = True
+                    if len(confirmedPatientAttributeList) == 0:
+                        patientTracker = True
+                    # test if trues to print
+                    if sampleTracker == True and patientTracker == True:
+                        # TODO Add the url of the patient
+                        console.print(currentPatientId, style = "pid", highlight=False)
+                        universalcount += 1
+                    sampleTracker = False
+                    patientTracker = False
+            else:
+                console.print(f"cannot search {study}, missing attribute(s)", style = "error")   
+            attributeTrack = 0
     print(f"total matched patients: {universalcount}")
     return 
 
@@ -322,7 +340,7 @@ def main(response : Annotated[str, typer.Option(prompt="Are you searching with a
                                                 help="choose whether to use patient as a base")]):
     if response == "n":
         # SEARCH WITHOUT PID
-        print("Manual Search \n")
+        console.print("Manual Search \n", style = "confirm")
         getStudyList()
         # loop until correct values entered
         while True:
@@ -338,12 +356,12 @@ def main(response : Annotated[str, typer.Option(prompt="Are you searching with a
     
     else:
         # SEARCH WITH PID. Validate the IDs
-        print("Patient-based Search \n")
+        console.print("Patient-based Search \n", style = "confirm")
         
         while True:
-            print("Please enter a valid patientID: ")
+            console.print("Please enter a valid patientID: ", style = "prompt")
             original_patient_id = input()
-            print("Please enter the corresponding studyID: ")
+            console.print("Please enter the corresponding studyID: ", style = "prompt")
             original_study_id = input()
             if errorCheckPatient(original_patient_id, original_study_id) + errorCheckStudy(original_study_id) == 0:
                 break
@@ -361,7 +379,11 @@ def main(response : Annotated[str, typer.Option(prompt="Are you searching with a
                 break
 
         # fetch patient's attributes (attributeIDs stored in confirmedAttributeList (and patient versions))
-        pOriginalSamples = fetchPatientSamples(original_patient_id, original_study_id)[0]
+        pOriginalSamples = fetchPatientSamples(original_patient_id, original_study_id)
+        if len(pOriginalSamples) > 1:
+            pOriginalSamples = pOriginalSamples[confirmCorrectSample(pOriginalSamples)]
+        else:
+            pOriginalSamples = pOriginalSamples[0]
         pSampleId = pOriginalSamples['sampleId']
         for attributeId in confirmedAttributeList:
             pCurrentAttribute = fetchSampleClinicalDataAttribute(original_study_id, pSampleId, attributeId)[0]
@@ -377,7 +399,7 @@ def main(response : Annotated[str, typer.Option(prompt="Are you searching with a
         # proceed with search
         print("Searching...")
         search()
-        print("Search Complete")
+        console.print("Search Complete", style = "confirm")
         return 0
 
 # build URL
