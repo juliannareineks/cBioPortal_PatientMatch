@@ -28,8 +28,11 @@ import requests
 import typer
 from typing_extensions import Annotated
 from rich import print
-from rich.console import Console
+from rich.console import Console,Group
 from rich.theme import Theme
+from rich.live import Live
+from rich.table import Table
+from rich.panel import Panel
 
 original_patient_id = None
 original_study_id = None
@@ -129,7 +132,7 @@ def getStudyList():
             if errorCheckStudy(list_input) == 0:
                 # add to list
                 studyList.append(list_input)
-    console.print("List complete", style = "confirm")
+    console.print("List complete\n", style = "confirm")
     return
 
 # Possible to cut down further? 
@@ -249,12 +252,16 @@ def errorCheckStudy(studyId: str):
 
 # search
 def search():
-    with console.status("Working...", spinner="dots"):
-        # intialize trackers/boolean confirms
-        attributeTrack = 0
-        universalcount = 0
-        sampleTracker = False
-        patientTracker = False
+    universalcount = 0
+    # intialize trackers/boolean confirms
+    attributeTrack = 0
+    sampleTracker = False
+    patientTracker = False
+    # table info
+    status = console.status("Working...", spinner="dots")
+    patientTable = Table()
+    patientTable.add_column("Matched Patients", style="green")
+    with Live(Panel(Group(patientTable, status)), refresh_per_second=4):
         # loop through studies
         for study in studyList:
             currentStudyAttributesList = fetchClinicalAttributesStudy(study)
@@ -273,7 +280,7 @@ def search():
 
                 # get list of patients
                 patientList = fetchPatientList(study)
-
+                
                 # loop through patients
                 for patientInfo in patientList:
                     # get one patient's samples
@@ -303,7 +310,9 @@ def search():
                     # test if trues to print
                     if sampleTracker == True and patientTracker == True:
                         # TODO Add the url of the patient
-                        console.print(currentPatientId, style = "pid", highlight=False)
+                        # console.print(currentPatientId, style = "pid", highlight=False)
+                        patientTable.add_row(currentPatientId)
+                        # 
                         universalcount += 1
                     sampleTracker = False
                     patientTracker = False
@@ -340,7 +349,8 @@ def main(response : Annotated[str, typer.Option(prompt="Are you searching with a
                                                 help="choose whether to use patient as a base")]):
     if response == "n":
         # SEARCH WITHOUT PID
-        console.print("Manual Search \n", style = "confirm")
+        # console.print("Manual Search \n", style = "confirm")
+        console.rule("Manual Search", style="blue")
         getStudyList()
         # loop until correct values entered
         while True:
@@ -349,14 +359,14 @@ def main(response : Annotated[str, typer.Option(prompt="Are you searching with a
                 break
 
         # proceed with the search
-        print("Searching...")
         search()
 
         return 0
     
     else:
         # SEARCH WITH PID. Validate the IDs
-        console.print("Patient-based Search \n", style = "confirm")
+        # console.print("Patient-based Search \n", style = "confirm")
+        console.rule("Patient-Based Search", style="blue")
         
         while True:
             console.print("Please enter a valid patientID: ", style = "prompt")
@@ -397,7 +407,6 @@ def main(response : Annotated[str, typer.Option(prompt="Are you searching with a
             print(f"{pattributeId} : {pcurrentValue}")
         
         # proceed with search
-        print("Searching...")
         search()
         console.print("Search Complete", style = "confirm")
         return 0
