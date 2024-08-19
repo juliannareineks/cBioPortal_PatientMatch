@@ -94,6 +94,13 @@ def fetchStudy(studyId: str):
 def fetchPatientClinicalData(patientId: str, studyId: str, attribute: str):
     return requests.get(buildURL("patients", studyId, patientId, None, attribute)).json()
 
+# fetchPatientPage
+# URL structure is as follows: https://www.cbioportal.org/patient?studyId=STUDY&caseId=CASEID
+# Case ID is patientID?
+def fetchPatientPage(study: str, case: str):
+    urlPrefix = "https://www.cbioportal.org/patient?"
+    return f"{urlPrefix}studyId={study}&caseId={case}"
+
 # Methods for lists of things (replaces global variables)
 
 def getCancerTypeList():
@@ -261,7 +268,8 @@ def search():
     status = console.status("Working...", spinner="dots")
     patientTable = Table()
     patientTable.add_column("Matched Patients", style="green")
-    with Live(Panel(Group(patientTable, status)), refresh_per_second=4):
+    patientTable.add_column("Study")
+    with Live(Panel(Group(status, patientTable)), refresh_per_second=2, vertical_overflow="ellipsis"):
         # loop through studies
         for study in studyList:
             currentStudyAttributesList = fetchClinicalAttributesStudy(study)
@@ -311,7 +319,9 @@ def search():
                     if sampleTracker == True and patientTracker == True:
                         # TODO Add the url of the patient
                         # console.print(currentPatientId, style = "pid", highlight=False)
-                        patientTable.add_row(currentPatientId)
+                        url = fetchPatientPage(study, currentPatientId)
+                        # print(f"[link={url}]patient[/link]")
+                        patientTable.add_row(f"[link={url}]{currentPatientId}[/link]", study)
                         # 
                         universalcount += 1
                     sampleTracker = False
