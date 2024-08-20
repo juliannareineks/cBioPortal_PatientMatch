@@ -129,7 +129,7 @@ def getPatientAttributeIdList():
 
 # prompts the user to enter a list of studies one at a time
 def getStudyList():
-    console.print("Please enter studyIDs to search through. Enter after each entry. Enter blank when done.", style = "prompt")
+    console.print("Please enter studyIDs to search through. Enter after each entry. Hit Enter when done.", style = "prompt")
     while True:
         list_input = input()
         if list_input == "":
@@ -147,7 +147,7 @@ def getStudyList():
 # THIS SECTION IS ONLY USED WITH NON-PATIENT SEARCHES
 def getCriteriaValues():
     # counter for ease
-    console.print("Please specify the following criteria with the correct number. Enter blank when you don't want to specify.", style = "prompt")
+    console.print("Please specify the following criteria with the correct number. Hit Enter when you don't want to specify and continue.", style = "prompt")
     
     # Cancer Type
     console.print("Cancer Type: ", style = "prompt")
@@ -192,7 +192,7 @@ def attributePrinter(aList: list, assignValueList:list, assignAttributeList:list
 # PATIENT SEARCHES
 def chooseAttributes(labelList: list, aList: list):
     counter = 1
-    console.print("Please enter the corresponding numbers for which criteria to use. Enter blank to confirm selections.", style = "prompt")
+    console.print("Please enter the corresponding numbers for which criteria to use. Hit Enter to confirm selections.", style = "prompt")
     for item in labelList:
         print(f"{counter} {item}")
         counter += 1
@@ -269,6 +269,7 @@ def search():
     patientTable = Table()
     patientTable.add_column("Matched Patients", style="green")
     patientTable.add_column("Study")
+    patientTable.add_column("Patient cBioPortal Page")
     with Live(Panel(Group(status, patientTable)), refresh_per_second=2, vertical_overflow="ellipsis"):
         # loop through studies
         for study in studyList:
@@ -320,8 +321,7 @@ def search():
                         # TODO Add the url of the patient
                         # console.print(currentPatientId, style = "pid", highlight=False)
                         url = fetchPatientPage(study, currentPatientId)
-                        # print(f"[link={url}]patient[/link]")
-                        patientTable.add_row(f"[link={url}]{currentPatientId}[/link]", study)
+                        patientTable.add_row(currentPatientId, study, url)
                         # 
                         universalcount += 1
                     sampleTracker = False
@@ -329,7 +329,8 @@ def search():
             else:
                 console.print(f"cannot search {study}, missing attribute(s)", style = "error")   
             attributeTrack = 0
-    print(f"total matched patients: {universalcount}")
+        status.update("Search Complete")
+        print(f"total matched patients: {universalcount}")
     return 
 
 # COMPARISON METHODS
@@ -390,10 +391,12 @@ def main(response : Annotated[str, typer.Option(prompt="Are you searching with a
         getStudyList()
 
         while True:
+            console.rule("Sample Attributes", style ="blue")
             test = chooseAttributes(getAttributeIdList(), confirmedAttributeList)
             if test == 0:
                 break
         while True:
+            console.rule("Patient Attributes", style ="blue")
             test2 = chooseAttributes(getPatientAttributeIdList(), confirmedPatientAttributeList)
             if test2 == 0:
                 break
@@ -418,7 +421,6 @@ def main(response : Annotated[str, typer.Option(prompt="Are you searching with a
         
         # proceed with search
         search()
-        console.print("Search Complete", style = "confirm")
         return 0
 
 # build URL
