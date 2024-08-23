@@ -389,8 +389,6 @@ def main(response : Annotated[str, typer.Option(prompt="Are you searching with a
 
         cancerSet = createCancerList()
         ctypelist = sorted(cancerSet)
-        print (cancerSet)
-        print (ctypelist)
         # loop until correct values entered
         while True:
             test = getCriteriaValues(ctypelist)
