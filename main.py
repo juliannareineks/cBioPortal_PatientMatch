@@ -90,7 +90,14 @@ def fetchStudy(studyId: str):
         return 1
     return 0
 
-# fetchPatientClinicalData gets a patient's clinical data (as opposed to a sample's clinical data)
+def fetchStudyCancerType(studyId: str):
+    return requests.get(buildURL("studies", studyId, None, None, None)).json()
+
+def fetchCancerTypeList(studyId: str):
+    return requests.get(buildURL("ctype", studyId, None, None, None)).json()
+
+
+# fetchPatientClinicalData gets a patient's clinical data, specific attribute(as opposed to a sample's clinical data)
 def fetchPatientClinicalData(patientId: str, studyId: str, attribute: str):
     return requests.get(buildURL("patients", studyId, patientId, None, attribute)).json()
 
@@ -102,9 +109,6 @@ def fetchPatientPage(study: str, case: str):
     return f"{urlPrefix}studyId={study}&caseId={case}"
 
 # Methods for lists of things (replaces global variables)
-
-def getCancerTypeList():
-    return ["Breast Cancer", "Non-Small Cell Lung Cancer", "Esophagogastric Cancer", "Colorectal Cancer", "Head and Neck Cancer", "Glioblastoma", "Prostate Cancer", "Leukemia", "Melanoma", "Bladder Cancer", "Renal Cell Carcinoma", "Pancreatic Cancer"]
 
 def getOverallSurvivalStatusList():
     return ["Alive", "Deceased", "N/A"]
@@ -145,13 +149,13 @@ def getStudyList():
 # Possible to cut down further? 
 # prompts the user for values, used when no patient specified.
 # THIS SECTION IS ONLY USED WITH NON-PATIENT SEARCHES
-def getCriteriaValues():
+def getCriteriaValues(spList : list):
     # counter for ease
     console.print("Please specify the following criteria with the correct number. Hit Enter when you don't want to specify and continue.", style = "prompt")
     
     # Cancer Type
     console.print("Cancer Type: ", style = "prompt")
-    attributePrinter(getCancerTypeList(), compareValueList, confirmedAttributeList, "CANCER_TYPE")
+    attributePrinter(spList, compareValueList, confirmedAttributeList, "CANCER_TYPE")
     
     # Sample type
     console.print("Sample Type: ", style = "prompt")
@@ -273,17 +277,24 @@ def search():
     with Live(Panel(Group(status, patientTable)), refresh_per_second=2, vertical_overflow="ellipsis"):
         # loop through studies
         for study in studyList:
+            hasStudiesList = []
             currentStudyAttributesList = fetchClinicalAttributesStudy(study)
             for attribute in confirmedAttributeList:
                 for listAttribute in currentStudyAttributesList:
                     if attribute == listAttribute['clinicalAttributeId']:
                         attributeTrack += 1
-                        print(f"{study} has attribute {attribute}")
+                        hasStudiesList.append(attribute)
             for attribute in confirmedPatientAttributeList:
                 for listAttribute in currentStudyAttributesList:
                     if attribute == listAttribute['clinicalAttributeId']:
                         attributeTrack += 1
-                        print(f"{study} has attribute {attribute}")
+                        hasStudiesList.append(attribute)
+            # Debug for study attributes
+            print(f"{study} has: ")
+            print(*hasStudiesList, sep = ", ")
+            # temphold = fetchStudyCancerType(study)['cancerType']['name']
+            # print(temphold)
+            
             if attributeTrack == (len(confirmedAttributeList) + len(confirmedPatientAttributeList)):
                 attributeTrack = 0
 
@@ -329,6 +340,7 @@ def search():
             else:
                 console.print(f"cannot search {study}, missing attribute(s)", style = "error")   
             attributeTrack = 0
+            hasStudiesList.clear()
         status.update("Search Complete")
         print(f"total matched patients: {universalcount}")
     return 
@@ -354,6 +366,16 @@ def patientDataCompare(patientId: str, num: int, studyId: str):
         return 1
     return 0
 
+# create cancer list
+def createCancerList():
+    cset = set()
+    for study in studyList:
+        samplelist = fetchCancerTypeList(study)
+        for sample in samplelist:
+            cset.add(sample['value'])
+    return cset
+
+
 # MAIN
 # Note on patient URL: there's no API function to get that URL, so I'm not sure there's a way to get it; will keep looking
 def main(response : Annotated[str, typer.Option(prompt="Are you searching with a patient?(y/n)", 
@@ -363,9 +385,15 @@ def main(response : Annotated[str, typer.Option(prompt="Are you searching with a
         # console.print("Manual Search \n", style = "confirm")
         console.rule("Manual Search", style="blue")
         getStudyList()
+        # Construct Cancer List
+
+        cancerSet = createCancerList()
+        ctypelist = sorted(cancerSet)
+        print (cancerSet)
+        print (ctypelist)
         # loop until correct values entered
         while True:
-            test = getCriteriaValues()
+            test = getCriteriaValues(ctypelist)
             if test == 0:
                 break
 
@@ -436,6 +464,8 @@ def buildURL(type: str, studyId: str, patientId: str, sampleId: str, attributeId
          return f"{urlFirstPiece}patients/{patientId}/{type}?{urlEndPiece}"
     elif type == "studies":
          return f"{urlFirstPiece}"
+    elif type == "ctype":
+         return f"{urlFirstPiece}clinical-data?attributeId=CANCER_TYPE&clinicalDataType=SAMPLE&{urlEndPiece}"
     elif type == "clinical-data":
         return f"{urlFirstPiece}samples/{sampleId}/{type}?attributeId={attributeId}&{urlEndPiece}"
     elif type == "clinical-attributes":
